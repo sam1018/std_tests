@@ -158,28 +158,6 @@ namespace tests {
 		return it_first;
 	}
 
-	template<typename ForwardIt, typename UnaryPredicate>
-	ForwardIt partition(ForwardIt begin, ForwardIt end, UnaryPredicate pred) {
-		return tests::partition_impl(begin, end, pred,
-			tests::iterator_traits<ForwardIt>::iterator_category{});
-	}
-
-	template<typename ForwardIt>
-	void quick_sort(ForwardIt begin, ForwardIt end) {
-		if (begin == end)
-			return;
-
-		auto pivot = *tests::next(begin, tests::distance(begin, end) / 2);
-		auto middle1 = tests::partition(begin, end, [pivot](const auto& x) {
-			return x < pivot; });
-		auto middle2 = tests::partition(middle1, end, [pivot](const auto& x) {
-			return !(x > pivot);
-		});
-
-		quick_sort(begin, middle1);
-		quick_sort(middle2, end);
-	}
-
 	template<typename InputIt, typename OutputIt>
 	OutputIt merge(InputIt first1, InputIt last1, InputIt first2, InputIt last2,
 		OutputIt out_it) {
@@ -218,5 +196,46 @@ namespace tests {
 		tests::merge(first, mid, mid, last, temp.begin());
 
 		std::copy(temp.begin(), temp.end(), first);
+	}
+}
+
+// algorithms // partition operations
+namespace tests {
+	template<typename ForwardIt, typename UnaryPredicate>
+	ForwardIt partition(ForwardIt begin, ForwardIt end, UnaryPredicate pred) {
+		return tests::partition_impl(begin, end, pred,
+			tests::iterator_traits<ForwardIt>::iterator_category{});
+	}
+
+	template<typename ForwardIt>
+	void quick_sort(ForwardIt begin, ForwardIt end) {
+		if (begin == end)
+			return;
+
+		auto pivot = *tests::next(begin, tests::distance(begin, end) / 2);
+		auto middle1 = tests::partition(begin, end, [pivot](const auto& x) {
+			return x < pivot; });
+		auto middle2 = tests::partition(middle1, end, [pivot](const auto& x) {
+			return !(x > pivot);
+		});
+
+		quick_sort(begin, middle1);
+		quick_sort(middle2, end);
+	}
+
+	template<typename ForwardIt, typename UnaryPred>
+	bool is_partitioned(ForwardIt begin, ForwardIt end, UnaryPred pred) {
+		auto p = tests::partition_point(begin, end, pred);
+		return std::find_if(p, end, pred) == end;
+	}
+
+	template<typename ForwardIt, typename UnaryPred>
+	ForwardIt partition_point(ForwardIt begin, ForwardIt end, UnaryPred pred) {
+		return std::find_if_not(begin, end, pred);
+	}
+
+	template<typename BidIt, typename UnaryPredicate>
+	BidIt stable_partition(BidIt first, BidIt last, UnaryPredicate pred) {
+
 	}
 }

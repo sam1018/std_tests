@@ -1,5 +1,4 @@
 #include "Header.h"
-
 #include <iostream>
 #include <vector>
 #include <algorithm>
@@ -8,6 +7,38 @@
 #include <forward_list>
 #include <random>
 #include <sstream>
+#include <functional>
+#include <Windows.h>
+#include <future>
+#include <ppltasks.h>
+
+using namespace concurrency;
+
+#undef assert
+
+void assert(bool cond) {
+	if (!cond)
+		DebugBreak();
+}
+
+template<typename Function>
+auto time_call(Function f) {
+	__int64 begin = GetTickCount();
+	f();
+	return (GetTickCount() - begin) / 1000.0;
+}
+
+struct measure_time {
+	std::string func_name;
+	__int64 start;
+	explicit measure_time(std::string&& _func_name) : 
+		func_name(std::forward<std::string>(_func_name)),
+		start(GetTickCount()) {
+	}
+	~measure_time() {
+		std::cout << func_name << ": " << (GetTickCount() - start) / 1000.0 << "s.\n";
+	}
+};
 
 template<typename C, typename T>
 void check(const C& c, const T& val_begin, const T& val_end) {
@@ -81,7 +112,7 @@ void add(C& c, T&& item, bool sort_items = true) {
 }
 
 template<typename C, typename T>
-void run_tests() {
+void binary_search_tests() {
 	C v;
 
 	check(v, T(-2), T(2));
@@ -134,11 +165,13 @@ bool operator==(const test_type& a, const test_type& b) {
 }
 
 template<typename C>
-void sort_test(int size){
+void sort_test(){
+	measure_time a("sort_test");
+
 	{
 		C v;
 
-		for (int i = 0; i < size; ++i) {
+		for (int i = 0; i < 500; ++i) {
 			add(v, rand(), 0);
 			tests::quick_sort(v.begin(), v.end());
 			assert(std::is_sorted(v.begin(), v.end()));
@@ -148,7 +181,7 @@ void sort_test(int size){
 	{
 		C v;
 
-		for (int i = 0; i < size; ++i) {
+		for (int i = 0; i < 500; ++i) {
 			add(v, rand(), 0);
 			tests::merge_sort(v.begin(), v.end());
 			assert(std::is_sorted(v.begin(), v.end()));
@@ -210,25 +243,79 @@ void merge_test(std::input_iterator_tag) {
 	assert(res1.str() == res2.str());
 }
 
-void run_tests() {
-	run_tests<std::vector<int>, int>();
-	run_tests<std::list<int>, int>();
-	run_tests<std::forward_list<int>, int>();
+template<typename C>
+void partition_test(int size) {
+	C c;
 
-	run_tests<std::vector<test_type>, test_type>();
-	run_tests<std::list<test_type>, test_type>();
-	run_tests<std::forward_list<test_type>, test_type>();
+	for (int i = 0; i < size; ++i)
+		add(c, rand());
 
+	auto pred = [](int x) {
+		return x % 2;
+	};
+
+	assert(std::is_partitioned(c.begin(), c.end(), pred) == tests::is_partitioned(c.begin(), c.end(), pred));
+
+	std::partition(c.begin(), c.end(), pred);
+
+	assert(std::partition_point(c.begin(), c.end(), pred) == tests::partition_point(c.begin(), c.end(), pred));
+
+	assert(std::is_partitioned(c.begin(), c.end(), pred) == tests::is_partitioned(c.begin(), c.end(), pred));
+}
+
+void run_binary_search_tests() {
+	measure_time a("run_binary_search_tests");
+
+	binary_search_tests<std::vector<int>, int>();
+	binary_search_tests<std::list<int>, int>();
+	binary_search_tests<std::forward_list<int>, int>();
+
+	binary_search_tests<std::vector<test_type>, test_type>();
+	binary_search_tests<std::list<test_type>, test_type>();
+	binary_search_tests<std::forward_list<test_type>, test_type>();
+}
+
+void merge_tests() {
+	measure_time a("merge_tests");
 	merge_test<std::vector<int>>();
 	merge_test<std::list<int>>();
 	merge_test<std::forward_list<int>>();
 	merge_test(std::input_iterator_tag{});
+}
 
-	sort_test<std::vector<int>>(1000);
-	sort_test<std::list<int>>(500);
-	sort_test<std::forward_list<int>>(500);
+void sort_tests() {
+	measure_time a("sort_tests");
+	auto t1 = create_task(sort_test<std::vector<int>>);
+	auto t2 = create_task(sort_test<std::list<int>>);
+	auto t3 = create_task(sort_test<std::forward_list<int>>);
+
+	t1.get();
+	t2.get();
+	t3.get();
+}
+
+void partition_tests() {
+	measure_time a("partition_tests");
+	partition_test<std::vector<int>>(500);
+	partition_test<std::list<int>>(500);
+	partition_test<std::forward_list<int>>(500);
+}
+
+void run_tests() {
+	auto t1 = create_task(run_binary_search_tests);
+	auto t2 = create_task(merge_tests);
+	auto t3 = create_task(sort_tests);
+	auto t4 = create_task(partition_tests);
+
+	t1.get();
+	t2.get();
+	t3.get();
+	t4.get();
 }
 
 int main() {
-	run_tests();
+	auto t = time_call(run_tests);
+	std::cout << "Time: " << t << "\n";
+	std::vector<int> v;
+	std::stable_partition(v.begin(), v.end(), []() {return true; });
 }
